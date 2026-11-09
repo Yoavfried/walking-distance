@@ -18,7 +18,7 @@ export function fetchHostedWalkingGrid(endpoint, bypass, lon, lat) {
       url.port || url.username || url.password || url.pathname !== '/api/grid' || url.search || url.hash) {
     throw new Error('Invalid hosted router configuration')
   }
-  return fetch(url, {
+  return fetch(url.href, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,7 +26,8 @@ export function fetchHostedWalkingGrid(endpoint, bypass, lon, lat) {
       'x-vercel-protection-bypass': bypass,
     },
     body: JSON.stringify({ lon: Number(lon.toFixed(5)), lat: Number(lat.toFixed(5)) }),
-    redirect: 'error',
+    // Workers only support follow or manual; never forward the bypass key to a redirect.
+    redirect: 'manual',
     signal: AbortSignal.timeout(14_000),
   })
 }

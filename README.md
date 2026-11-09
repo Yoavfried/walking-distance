@@ -116,8 +116,8 @@ browser assets and generated K26 snapshot to `hosting/dist-public/`.
   `hosting/estimate.mjs` turn a walking grid into a boundary and vote estimate
   inside a browser worker. `hosting/export-data.py` generates the snapshot.
 - `hosting/worker.mjs` is the Cloudflare entry point for static assets and
-  rate-limited routing requests. `hosting/router/` contains the optional
-  Vercel service that builds and runs a regional Valhalla pedestrian graph.
+  rate-limited routing requests. `hosting/router/` contains the protected
+  Vercel service that builds and runs the site's regional Valhalla pedestrian graph.
   It takes a coordinate pair and returns a 30-minute grid; it receives no
   election results or account data.
 - For a hosted copy, protect all URLs on **your own** Vercel routing project.
@@ -128,6 +128,8 @@ browser assets and generated K26 snapshot to `hosting/dist-public/`.
 
 The build can use the shared [public Valhalla service](https://valhalla.openstreetmap.de/)
 for the bundled starting grid. Read its [usage guidance](https://github.com/valhalla/valhalla#public-servers)
-before using it. Generated assets, the routing graph, caches, and deployment
-credentials are not committed. Election data and third-party components retain
-their own terms.
+before using it. For a hosted build, request the default pin (34.7748, 32.0776)
+from your own protected router and pass its TIFF to
+`npm run prepare:start -- path/to/initial-grid.tiff` instead.
+Generated assets, the routing graph, caches, and deployment credentials are not
+committed. Election data and third-party components retain their own terms.

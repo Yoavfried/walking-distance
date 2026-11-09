@@ -218,7 +218,7 @@ test('The Worker sends only the rounded pin and server key to the hosted router'
   assert.equal(mock.mock.callCount(), 1)
   const [url, options] = mock.mock.calls[0].arguments
   assert.equal(String(url), hostedEnv.WALKING_ROUTER_URL)
-  assert.equal(options.redirect, 'error')
+  assert.equal(options.redirect, 'manual')
   assert.equal(options.headers['x-vercel-protection-bypass'], hostedEnv.WALKING_ROUTER_BYPASS)
   assert.deepEqual(JSON.parse(options.body), { lon: 34.77481, lat: 32.0776 })
 })
@@ -231,5 +231,13 @@ test('Hosted routing never falls back to the public service', async (t) => {
   assert.equal((await worker.fetch(pinRequest(), blocked)).status, 503)
   assert.equal(mock.mock.callCount(), 0)
   assert.equal((await worker.fetch(pinRequest(), hostedEnv)).status, 502)
+  assert.equal(mock.mock.callCount(), 1)
+})
+
+test('A hosted router redirect is rejected without forwarding its destination', async (t) => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => Response.redirect('https://example.invalid'))
+  const response = await worker.fetch(pinRequest(), hostedEnv)
+  assert.equal(response.status, 502)
+  assert.equal(response.headers.get('Location'), null)
   assert.equal(mock.mock.callCount(), 1)
 })
