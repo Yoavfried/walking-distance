@@ -186,3 +186,50 @@ test('Each pin requests one 30-minute pedestrian grid', async (t) => {
   assert.equal(query.format, 'geotiff')
   assert.ok(options.headers['X-Client-Id'])
 })
+
+const hostedEnv = {
+  ...vars,
+  WALKING_ROUTER_URL: 'https://test-router.vercel.app/api/grid',
+  WALKING_ROUTER_BYPASS: 'test-secret',
+  HOSTED_VISITOR_LIMIT: { limit: async () => ({ success: true }) },
+  HOSTED_LIMIT: { limit: async () => ({ success: true }) },
+}
+
+function pinRequest() {
+  const body = '{"lon":34.7748067,"lat":32.0776}'
+  return new Request(vars.PUBLIC_ORIGIN + vars.BASE_PATH + '/api/isochrone', {
+    method: 'POST', body, headers: {
+      Origin: vars.PUBLIC_ORIGIN, 'Content-Type': 'application/json', 'Content-Length': String(body.length),
+      'x-vercel-protection-bypass': 'untrusted-client-header',
+    },
+  })
+}
+
+test('The Worker sends only the rounded pin and server key to the hosted router', async (t) => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => new Response('grid', { headers: {
+    'Content-Type': 'image/tiff', 'Set-Cookie': 'private=1', 'x-vercel-protection-bypass': 'private',
+  } }))
+  const response = await worker.fetch(pinRequest(), hostedEnv)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('X-Walking-Router'), 'hosted')
+  assert.equal(response.headers.get('Cache-Control'), 'no-store')
+  assert.equal(response.headers.get('Set-Cookie'), null)
+  assert.equal(response.headers.get('x-vercel-protection-bypass'), null)
+  assert.equal(mock.mock.callCount(), 1)
+  const [url, options] = mock.mock.calls[0].arguments
+  assert.equal(String(url), hostedEnv.WALKING_ROUTER_URL)
+  assert.equal(options.redirect, 'error')
+  assert.equal(options.headers['x-vercel-protection-bypass'], hostedEnv.WALKING_ROUTER_BYPASS)
+  assert.deepEqual(JSON.parse(options.body), { lon: 34.77481, lat: 32.0776 })
+})
+
+test('Hosted routing never falls back to the public service', async (t) => {
+  const mock = t.mock.method(globalThis, 'fetch', async () => new Response('forbidden', { status: 401 }))
+  assert.equal((await worker.fetch(pinRequest(), { ...hostedEnv, WALKING_ROUTER_BYPASS: '' })).status, 502)
+  assert.equal((await worker.fetch(pinRequest(), { ...hostedEnv, WALKING_ROUTER_URL: 'https://evil.example/api/grid' })).status, 502)
+  const blocked = { ...hostedEnv, HOSTED_LIMIT: { limit: async () => ({ success: false }) } }
+  assert.equal((await worker.fetch(pinRequest(), blocked)).status, 503)
+  assert.equal(mock.mock.callCount(), 0)
+  assert.equal((await worker.fetch(pinRequest(), hostedEnv)).status, 502)
+  assert.equal(mock.mock.callCount(), 1)
+})

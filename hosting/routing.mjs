@@ -11,3 +11,22 @@ export async function fetchWalkingGrid(lon, lat) {
     signal: AbortSignal.timeout(10_000),
   })
 }
+
+export function fetchHostedWalkingGrid(endpoint, bypass, lon, lat) {
+  const url = new URL(endpoint)
+  if (!bypass || url.protocol !== 'https:' || !/^[a-z0-9-]+\.vercel\.app$/.test(url.hostname) ||
+      url.port || url.username || url.password || url.pathname !== '/api/grid' || url.search || url.hash) {
+    throw new Error('Invalid hosted router configuration')
+  }
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'image/tiff',
+      'x-vercel-protection-bypass': bypass,
+    },
+    body: JSON.stringify({ lon: Number(lon.toFixed(5)), lat: Number(lat.toFixed(5)) }),
+    redirect: 'error',
+    signal: AbortSignal.timeout(14_000),
+  })
+}

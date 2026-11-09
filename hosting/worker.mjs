@@ -1,4 +1,4 @@
-import { fetchWalkingGrid } from './routing.mjs'
+import { fetchHostedWalkingGrid, fetchWalkingGrid } from './routing.mjs'
 
 const headers = {
   'Cache-Control': 'no-store',
@@ -37,20 +37,34 @@ export default {
       return json(400, { error: 'Invalid starting point.' })
     }
 
-    const visitor = await env.VISITOR_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') ?? 'unknown' })
+    const hosted = Boolean(env.WALKING_ROUTER_URL)
+    if (hosted && !env.WALKING_ROUTER_BYPASS) return json(502, { error: 'The walking service is unavailable.' })
+    const visitorLimit = hosted ? env.HOSTED_VISITOR_LIMIT : env.VISITOR_LIMIT
+    const sharedLimit = hosted ? env.HOSTED_LIMIT : env.DEMO_LIMIT
+    const visitor = await visitorLimit.limit({ key: request.headers.get('CF-Connecting-IP') ?? 'unknown' })
     if (!visitor.success) return json(503, { error: 'Try again in a moment.' })
-    const demo = await env.DEMO_LIMIT.limit({ key: 'isochrone' })
-    if (!demo.success) return json(503, { error: 'The preview is busy.' })
+    const shared = await sharedLimit.limit({ key: 'isochrone' })
+    if (!shared.success) return json(503, { error: 'The walking service is busy.' })
 
     try {
-      const upstream = await fetchWalkingGrid(lon, lat)
-      if (upstream.status === 429 || upstream.status === 503) return json(503, { error: 'The walking service is busy.' })
-      if (upstream.status === 400 || upstream.status === 404) return json(422, { error: 'No walking route found.' })
+      const upstream = hosted
+        ? await fetchHostedWalkingGrid(env.WALKING_ROUTER_URL, env.WALKING_ROUTER_BYPASS, lon, lat)
+        : await fetchWalkingGrid(lon, lat)
+      if (upstream.status === 429 || upstream.status === 503 || (hosted && upstream.status === 402)) {
+        return json(503, { error: 'The walking service is busy.' })
+      }
+      if (upstream.status === 422 || (!hosted && [400, 404].includes(upstream.status))) {
+        return json(422, { error: 'No walking route found.' })
+      }
       if (!upstream.ok) return json(502, { error: 'The walking service is unavailable.' })
       if (!upstream.headers.get('Content-Type')?.startsWith('image/tiff')) {
         return json(502, { error: 'The walking service returned an unexpected response.' })
       }
-      return new Response(upstream.body, { headers: { ...headers, 'Content-Type': 'image/tiff' } })
+      return new Response(upstream.body, { headers: {
+        ...headers,
+        'Content-Type': 'image/tiff',
+        'X-Walking-Router': hosted ? 'hosted' : 'public',
+      } })
     } catch {
       return json(502, { error: 'The walking service is unavailable.' })
     }

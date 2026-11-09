@@ -1,0 +1,7 @@
+{
+  "buildCommand": "python3 prepare.py",
+  "outputDirectory": "public",
+  "functions": {
+    "api/grid.py": { "includeFiles": "engine/**", "maxDuration": 15 }
+  }
+}

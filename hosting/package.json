@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "demo": "node build.mjs --demo && node demo-server.mjs",
     "prepare:start": "node prepare-start.mjs",
     "test": "node --test *.test.mjs"
   },

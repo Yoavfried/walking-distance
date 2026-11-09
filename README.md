@@ -44,28 +44,51 @@ break down within it. It is available in Hebrew and English.
 ## Sources And Privacy
 
 Street tiles are provided by [OpenFreeMap](https://openfreemap.org/) from
-[OpenStreetMap](https://www.openstreetmap.org/copyright). The public
-[Valhalla service](https://valhalla.openstreetmap.de/) uses OpenStreetMap for
-routing. For election-data provenance and downloads, see the
-[election data documentation](https://github.com/Yoavfried/israel-election-map/tree/main/data).
+[OpenStreetMap](https://www.openstreetmap.org/copyright). Valhalla also uses
+OpenStreetMap for pedestrian routing.
 
 The app is ad-free. It doesn't store selected pins; new pin coordinates are
 sent to the site's routing endpoint and its routing provider to calculate the
 walk. The app stores only the language preference in browser storage.
 The browser also loads map tiles from OpenFreeMap and fonts from Google Fonts.
 
-## Build And Test
+## Data Downloads
 
-The JavaScript unit tests run with Node.js 22+ and don't require deployment
-credentials or a copy of the election data:
+- [Walking Distance's K26 snapshot (JSON)](https://yoavfried.com/walking-distance/k26-results.json)
+  contains party labels and aggregate vote counts for the areas used here. Its
+  `units` array has area IDs, polygon coordinates, area and bounds in EPSG:6933,
+  party vote counts, and a type indicating direct, grouped or fallback results.
+  `buildId` identifies the upstream election-map build. This is derived data,
+  not per-ballot-box results, and it does not contain voter locations.
+- [Israeli Election Map data downloads](https://github.com/Yoavfried/israel-election-map/tree/main/data)
+  has the underlying ballot tables, geography packages and source notes.
+  They are maintained in that separate project rather than duplicated here.
+
+## Run Locally
+
+For a quick preview, use Node.js 22+:
 
 ```sh
+git clone https://github.com/Yoavfried/walking-distance.git
+cd walking-distance
 cd hosting
 npm ci
-npm test
+npm run demo
 ```
 
-A full local preview also needs Python 3.12+, a checkout of
+Open [the local demo](http://127.0.0.1:4187/walking-distance/). It downloads the
+published snapshot and starting grid, verifies the digests of its downloaded
+map-library code, and builds the app from your checkout. You can use the map,
+results, and minute slider at the starting pin without Python, a cloud account,
+or any secrets. To enable new pins, run your own
+[Valhalla server](https://valhalla.github.io/valhalla/) with GeoTIFF support and
+set `WALK_VOTE_LOCAL_VALHALLA_URL` to its loopback `/isochrone` URL, for example
+`http://127.0.0.1:8002/isochrone`, before running the demo. It never uses the
+live site's private routing service.
+
+## Rebuild The Data And Run Tests
+
+The full source-data build needs Python 3.12+, a checkout of
 [Israeli Election Map](https://github.com/Yoavfried/israel-election-map) with
 generated data under `web/app/public/data/v2/`, and that checkout's web
 dependencies installed. Follow its build instructions, then set
@@ -78,18 +101,33 @@ python -m pip install --target .deps shapely==2.2.0 pyproj==3.8.0
 python -m unittest test_estimation
 cd hosting
 npm ci
+npm test
 npm run prepare:start
 npm run build
-npx wrangler dev --port 4187 --var PUBLIC_ORIGIN:http://127.0.0.1:4187
 ```
 
-Open [the local preview](http://127.0.0.1:4187/walking-distance/).
-`prepare:start` fetches the initial walking grid. `npm run build` writes
-the browser assets and generated K26 snapshot to `hosting/dist-public/`.
-Generated data, local caches and deployment credentials are not committed.
+`npm test` can also run on its own without Python or the election-map checkout.
+`prepare:start` fetches the initial walking grid; `npm run build` writes the
+browser assets and generated K26 snapshot to `hosting/dist-public/`.
 
-The hosted app uses a Cloudflare Worker for static assets and rate-limited
-routing requests. The public Valhalla instance is shared infrastructure;
-read its [usage guidance](https://github.com/valhalla/valhalla#public-servers)
-before deploying another public instance. Election data and third-party
-components retain their own terms.
+## How The Site Is Hosted
+
+- `app.js` renders the map and results. `hosting/contour.mjs` and
+  `hosting/estimate.mjs` turn a walking grid into a boundary and vote estimate
+  inside a browser worker. `hosting/export-data.py` generates the snapshot.
+- `hosting/worker.mjs` is the Cloudflare entry point for static assets and
+  rate-limited routing requests. `hosting/router/` contains the optional
+  Vercel service that builds and runs a regional Valhalla pedestrian graph.
+  It takes a coordinate pair and returns a 30-minute grid; it receives no
+  election results or account data.
+- For a hosted copy, protect all URLs on **your own** Vercel routing project.
+  Set `WALKING_ROUTER_URL` on **your own** Worker and put its Vercel automation
+  bypass key in the Worker secret `WALKING_ROUTER_BYPASS`. Never put it in the
+  browser or in Git. Hosted routing does not fall back to the shared public API
+  when the private route fails.
+
+The build can use the shared [public Valhalla service](https://valhalla.openstreetmap.de/)
+for the bundled starting grid. Read its [usage guidance](https://github.com/valhalla/valhalla#public-servers)
+before using it. Generated assets, the routing graph, caches, and deployment
+credentials are not committed. Election data and third-party components retain
+their own terms.

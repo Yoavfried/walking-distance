@@ -2,11 +2,13 @@
 __pycache__/
 *.log
 node_modules/
-/.playwright-cli/
+.playwright-cli/
 /hosting/.checks/
 /hosting/.wrangler/
 /hosting/dist/
 /hosting/dist-public/
+/hosting/router/engine/
+/hosting/router/.vercel/
 .env
 .env.*
 .dev.vars*
