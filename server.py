@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / ".deps"))
 
 from pyproj import Transformer
 from shapely import STRtree, constrained_delaunay_triangles, make_valid, transform, union_all
-from shapely.geometry import Point, mapping, shape
+from shapely.geometry import Point, Polygon, mapping, shape
 
 REPO = Path(environ.get("WALK_VOTE_REPO", Path.home() / "Desktop" / "Side Projects" / "israel-election-map"))
 ELECTION = "K26"
@@ -50,9 +50,12 @@ def apportion_votes(estimates, target=None):
     return whole
 
 
-def measure_overlap(walk, area):
+def measure_overlap(walk, area, filled=None):
     clipped = polygon_only(walk.intersection(area))
-    return clipped, min(1.0, clipped.area / area.area)
+    fraction = min(1.0, clipped.area / area.area)
+    if filled is not None and 0 < fraction < 1 and area.difference(filled).area <= area.area * 1e-9:
+        fraction = 1.0
+    return clipped, fraction
 
 
 def sample_dots(geometry, count, seed):
@@ -139,6 +142,8 @@ class ElectionIndex:
         self.tree = STRtree(self.geometries)
 
     def estimate(self, walk):
+        parts = list(polygon_parts(walk))
+        filled = union_all([Polygon(part.exterior) for part in parts]) if any(part.interiors for part in parts) else None
         raw = {key: 0.0 for key in self.parties}
         contributions = {key: {} for key in self.parties}
         included = []
@@ -146,7 +151,7 @@ class ElectionIndex:
         areas = []
         for i in sorted(self.tree.query(walk, predicate="intersects")):
             row, kind = self.units[i]
-            overlap, fraction = measure_overlap(walk, self.geometries[i])
+            overlap, fraction = measure_overlap(walk, self.geometries[i], filled)
             if overlap.is_empty or not fraction:
                 continue
             for party, votes in row["partyVotes"].items():

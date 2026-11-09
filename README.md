@@ -18,11 +18,16 @@ in the 2026 Knesset election. The app is available in Hebrew and English.
   and its components. Marker-only results, unassigned ballots and double
   envelopes are excluded.
 - For each polygon, each party's votes are multiplied by the fraction of the
-  polygon's area inside the walk, measured in EPSG:6933. Largest-remainder
-  rounding keeps counts whole and their sum equal to the rounded total.
+  polygon's area inside the walk, measured in EPSG:6933. If the entire result
+  polygon is inside the outer walking boundary and has some reachable area,
+  interior holes do not reduce its vote count. Areas crossing the outer
+  boundary are still weighted by their actual reachable overlap.
+  Largest-remainder rounding keeps counts whole and their sum equal to the rounded total.
   This assumes uniform vote density; it does not model where people live.
 - Each dot represents one estimated vote. Dots are generated within the
-  contributing polygons, not from real voter locations.
+  reachable portion of each contributing polygon, not from real voter locations.
+  Holes remain visible. A small diamond can be a single grid cell with missing
+  or above-threshold travel time, not the outline of a real obstacle.
 
 Street tiles come from [OpenFreeMap](https://openfreemap.org/) and
 [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).

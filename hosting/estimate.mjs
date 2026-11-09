@@ -4,6 +4,7 @@ import proj4 from 'proj4'
 
 const equalArea = proj4('EPSG:4326', '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs')
 const intersect = (a, b) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1]
+const containsBounds = (a, b) => a[0] <= b[0] && a[1] <= b[1] && a[2] >= b[2] && a[3] >= b[3]
 
 function ringArea(ring) {
   const [x, y] = ring[0]
@@ -93,6 +94,8 @@ export function estimate(snapshot, walk, minutes = 15) {
   const walkArea = areaOf(merged)
   if (!walkArea) throw new Error('Empty walking contour')
   const bounds = boundsOf(merged)
+  const hasHoles = merged.some((polygon) => polygon.length > 1)
+  let filled
   const parties = [...snapshot.parties].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const raw = parties.map(() => 0)
   const contributors = []
@@ -100,8 +103,13 @@ export function estimate(snapshot, walk, minutes = 15) {
   for (const unit of snapshot.units) {
     if (!intersect(unit.bounds, bounds)) continue
     const polygons = clip.intersection(merged, unit.polygons)
-    const fraction = Math.min(1, areaOf(polygons) / unit.area)
+    let fraction = Math.min(1, areaOf(polygons) / unit.area)
     if (!(fraction > 0)) continue
+    if (hasHoles && fraction < 1 && containsBounds(bounds, unit.bounds)) {
+      // Use the hole-free outline only to check enclosure, never for placing dots.
+      filled ??= clip.union(...merged.map(([outer]) => [outer]))
+      if (areaOf(clip.difference(unit.polygons, filled)) <= unit.area * 1e-9) fraction = 1
+    }
     const weights = parties.map((party, i) => {
       const value = (unit.votes[party.id] ?? 0) * fraction
       raw[i] += value

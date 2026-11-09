@@ -14,6 +14,16 @@ class EstimationTests(unittest.TestCase):
         _, fraction = measure_overlap(box(0, 0, 1, 1), box(1, 0, 2, 1))
         self.assertEqual(fraction, 0)
 
+    def test_interior_hole_reduces_dot_area_but_not_enclosed_vote_count(self):
+        outer = box(0, 0, 10, 10)
+        hole = box(2, 2, 8, 8)
+        walk = Polygon(outer.exterior, [hole.exterior])
+        overlap, fraction = measure_overlap(walk, box(1, 3, 3, 5), outer)
+        self.assertEqual(fraction, 1)
+        self.assertEqual(overlap.area, 2)
+        self.assertEqual(measure_overlap(walk, box(3, 3, 5, 5), outer)[1], 0)
+        self.assertAlmostEqual(measure_overlap(walk, box(7, 3, 11, 5), outer)[1], 0.5)
+
     def test_rounding_preserves_rounded_total(self):
         self.assertEqual(apportion_votes({"A": 1.6, "B": 1.5, "C": 1.4}), {"A": 2, "B": 2, "C": 1})
 
