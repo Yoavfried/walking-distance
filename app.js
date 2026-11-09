@@ -372,12 +372,13 @@ async function loadRoute(path, point, signal) {
 function gridForPoint() {
   if (!pointGrid) {
     const pin = pinId;
+    const start = [...selected];
     pointGrid = loadRoute(
       isInitial ? 'initial-grid.tiff' : 'api/isochrone',
-      isInitial ? null : { lon: selected[0], lat: selected[1] },
+      isInitial ? null : { lon: start[0], lat: start[1] },
       pointController.signal,
     ).then((grid) => {
-      if (pin === pinId) estimator.postMessage({ pin, grid }, [grid]);
+      if (pin === pinId) estimator.postMessage({ pin, grid, start }, [grid]);
     }).catch((error) => {
       if (pin === pinId) pointGrid = undefined;
       throw error;

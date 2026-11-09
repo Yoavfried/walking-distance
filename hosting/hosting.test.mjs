@@ -50,7 +50,44 @@ test('A single missing cell creates a diamond-shaped hole', () => {
   const [, hole] = contour(15).geometry.coordinates[0]
   assert.equal(hole.length, 5)
   assert.deepEqual(hole.slice(0, -1).map((point) => point.join(',')).sort(),
-    ['34.5,30.5', '35.5,29.5', '35.5,31.5', '36.5,30.5'])
+    ['35,30.5', '35.5,30', '35.5,31', '36,30.5'])
+})
+
+test('A reachable cell beside missing data is not collapsed to a point', () => {
+  const contour = walkingGrid({
+    width: 3, height: 3, lon: 34, lat: 32, dx: 1, dy: -1, noData: 65535,
+    seconds: [65535, 65535, 65535, 65535, 0, 65535, 65535, 65535, 65535],
+  })
+  const [outer] = contour(1).geometry.coordinates[0]
+  assert.deepEqual(outer.slice(0, -1).map((point) => point.join(',')).sort(),
+    ['35,30.5', '35.5,30', '35.5,31', '36,30.5'])
+})
+
+test('Contour still interpolates between measured walk times', () => {
+  const contour = walkingGrid({
+    width: 3, height: 3, lon: 34, lat: 32, dx: 1, dy: -1, noData: 65535,
+    seconds: [180, 180, 180, 180, 0, 180, 180, 180, 180],
+  })
+  const [outer] = contour(1).geometry.coordinates[0]
+  const east = Math.max(...outer.map(([lon]) => lon))
+  assert.ok(Math.abs(east - (35.5 + 1 / 3)) < 1e-8)
+})
+
+test('Corrects a north-shifted Valhalla grid without moving an already aligned grid', () => {
+  const grid = {
+    width: 3, height: 3, lon: 34, lat: 32, dx: 0.001, dy: -0.001, noData: 65535,
+    seconds: [65535, 90, 65535, 90, 0, 90, 65535, 90, 65535],
+  }
+  const start = [34.0015, 31.9975]
+  const aligned = { ...grid, lat: grid.lat + grid.dy }
+  for (const minutes of [1, 5, 15, 30]) {
+    const corrected = walkingGrid(grid, start)(minutes)
+    assert.notDeepEqual(corrected, walkingGrid(grid)(minutes))
+    assert.deepEqual(corrected, walkingGrid(aligned)(minutes))
+    assert.deepEqual(corrected, walkingGrid(aligned, start)(minutes))
+    assert.deepEqual(corrected, walkingGrid(grid, [34.001504, 31.997495])(minutes))
+    assert.deepEqual(walkingGrid(grid, [34.0017, 31.9975])(minutes), walkingGrid(grid)(minutes))
+  }
 })
 
 test('Only fully enclosed result areas with reachable land recover votes lost to holes', () => {
@@ -93,7 +130,7 @@ test('Only fully enclosed result areas with reachable land recover votes lost to
 
 test('The real starting grid returns increasing area and estimated votes', { skip: !process.env.WALK_VOTE_PARITY }, async () => {
   const bytes = await readFile(new URL('./.checks/initial-grid.tiff', import.meta.url))
-  const contour = await readWalkingGrid(Uint8Array.from(bytes).buffer)
+  const contour = await readWalkingGrid(Uint8Array.from(bytes).buffer, [34.7748, 32.0776])
   const snapshot = await read(assets.directory + vars.BASE_PATH + '/k26-results.json')
   let previous = { areaKm2: 0, votes: 0 }
   for (const minutes of [1, 14, 15, 16, 29, 30]) {

@@ -1,60 +1,95 @@
 # Walking Distance / מרחק הליכה
 
-[Open Walking Distance](https://yoavfried.com/walking-distance) · [Yoav Fried](https://yoavfried.com/)
+[Open Walking Distance](https://yoavfried.com/walking-distance) · [Report an issue](https://github.com/Yoavfried/walking-distance/issues)
 
-Choose a starting point in Israel and a walking time between 0 and 30 minutes.
-The map shows the area reachable on foot and estimates the votes cast there
-in the 2026 Knesset election. The app is available in Hebrew and English.
+Drop a pin in Israel and set a walking time from 0 to 30 minutes. The map shows
+the estimated area reachable on foot and how the 2026 Knesset election results
+break down within it. It is available in Hebrew and English.
 
-## How It Works
+## How The Estimate Works
 
-- [Valhalla](https://valhalla.github.io/valhalla/api/isochrone/api-reference/)
-  computes one 30-minute pedestrian travel-time grid per pin from OpenStreetMap.
-  The browser extracts a contour for each selected minute. Moving the slider
-  does not send another routing request. The initial pin uses a bundled grid.
-- The election snapshot comes from the [Israeli Election Map](https://github.com/Yoavfried/israel-election-map).
-  It uses that map's K26 result polygons and, where no statistical-area breakdown
-  is available, whole-locality polygons. It does not count both a combined area
-  and its components. Marker-only results, unassigned ballots and double
-  envelopes are excluded.
-- For each polygon, each party's votes are multiplied by the fraction of the
-  polygon's area inside the walk, measured in EPSG:6933. If the entire result
-  polygon is inside the outer walking boundary and has some reachable area,
-  interior holes do not reduce its vote count. Areas crossing the outer
-  boundary are still weighted by their actual reachable overlap.
-  Largest-remainder rounding keeps counts whole and their sum equal to the rounded total.
-  This assumes uniform vote density; it does not model where people live.
-- Each dot represents one estimated vote. Dots are generated within the
-  reachable portion of each contributing polygon, not from real voter locations.
-  Holes remain visible. A small diamond can be a single grid cell with missing
-  or above-threshold travel time, not the outline of a real obstacle.
+1. [Valhalla](https://valhalla.github.io/valhalla/api/isochrone/api-reference/)
+   returns one 30-minute pedestrian travel-time grid per pin. The browser turns
+   that grid into a boundary for each selected minute; moving the slider does
+   not send another routing request. The initial pin uses a bundled grid.
+2. The [Israeli Election Map](https://github.com/Yoavfried/israel-election-map)
+   supplies the K26 results. We use the visible statistical-area and grouped
+   result polygons, or whole-locality polygons where the election map does not
+   have a split. We don't count a group and its components twice. Marker-only
+   results, unassigned ballots and double envelopes are excluded.
+3. For each party, we count the fraction of its votes proportional to the
+   fraction of each result polygon covered by the walk, measured in EPSG:6933.
+   For example, 10% of a polygon with 600 valid votes contributes about 60 votes.
+   We assume the votes are spread evenly across the polygon. If a result polygon
+   is entirely inside the walk's outer boundary and partly reachable, interior
+   holes do not reduce its count. A polygon entirely inside a hole contributes
+   nothing. Largest-remainder rounding keeps the party counts whole and their
+   sum equal to the rounded total.
+4. Each dot is one estimated vote, placed within the reachable part of a
+   contributing polygon. The dots do not show where individual voters live.
 
-Street tiles come from [OpenFreeMap](https://openfreemap.org/) and
-[OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
-Selected coordinates are sent to the rate-limited routing endpoint and its
-Valhalla provider; this app does not store selected pins.
-The public Valhalla instance is shared infrastructure. See its
-[usage guidance](https://github.com/valhalla/valhalla#public-servers)
-before operating another public instance of this app or increasing traffic.
+## Limits
+
+- The walking boundary is an estimate, not street-by-street directions. In the
+  grids tested, cells were about 100 meters across; two streets on opposite
+  sides of a barrier can share one cell even when their walking times differ.
+  A small diamond-shaped hole can be a grid artifact, not a real obstacle.
+- The browser corrects the known [north-shifted Valhalla GeoTIFF origin](https://github.com/valhalla/valhalla/blob/3.9.1/src/tyr/isochrone_serializer.cc#L316-L328)
+  when the zero-minute cell confirms the shift. It interpolates between known
+  times but does not assign a time to cells with missing data.
+- Election polygons can cover more than one statistical area, and some results
+  are not mapped. The tool cannot recover exact results for arbitrary streets
+  or tell where any individual voted.
+
+## Sources And Privacy
+
+Street tiles are provided by [OpenFreeMap](https://openfreemap.org/) from
+[OpenStreetMap](https://www.openstreetmap.org/copyright). The public
+[Valhalla service](https://valhalla.openstreetmap.de/) uses OpenStreetMap for
+routing. For election-data provenance and downloads, see the
+[election data documentation](https://github.com/Yoavfried/israel-election-map/tree/main/data).
+
+The app is ad-free. It doesn't store selected pins; new pin coordinates are
+sent to the site's routing endpoint and its routing provider to calculate the
+walk. The app stores only the language preference in browser storage.
+The browser also loads map tiles from OpenFreeMap and fonts from Google Fonts.
 
 ## Build And Test
 
-Use Node.js 22+, Python 3.12+, and an election-map checkout with its built K26
-web data and installed MapLibre dependencies. Set `WALK_VOTE_REPO` to that
-checkout and optionally set `WALK_VOTE_PYTHON` to the Python executable.
-Generated data and deployment credentials are not in this repository.
+The JavaScript unit tests run with Node.js 22+ and don't require deployment
+credentials or a copy of the election data:
 
 ```sh
-python -m pip install --target .deps shapely==2.2.0 pyproj==3.8.0
 cd hosting
 npm ci
 npm test
+```
+
+A full local preview also needs Python 3.12+, a checkout of
+[Israeli Election Map](https://github.com/Yoavfried/israel-election-map) with
+generated data under `web/app/public/data/v2/`, and that checkout's web
+dependencies installed. Follow its build instructions, then set
+`WALK_VOTE_REPO` to the election-map checkout's root. If needed, set
+`WALK_VOTE_PYTHON` to the Python executable to use for export.
+
+From the Walking Distance repository root:
+```sh
+python -m pip install --target .deps shapely==2.2.0 pyproj==3.8.0
+python -m unittest test_estimation
+cd hosting
+npm ci
 npm run prepare:start
 npm run build
 npx wrangler dev --port 4187 --var PUBLIC_ORIGIN:http://127.0.0.1:4187
 ```
 
-Open [the local preview](http://127.0.0.1:4187/walking-distance). For a hosted
-deployment, configure the public origin, path and rate limits in
-`hosting/wrangler.json`. The repository contains application source; election
-data and third-party components retain their own terms.
+Open [the local preview](http://127.0.0.1:4187/walking-distance/).
+`prepare:start` fetches the initial walking grid. `npm run build` writes
+the browser assets and generated K26 snapshot to `hosting/dist-public/`.
+Generated data, local caches and deployment credentials are not committed.
+
+The hosted app uses a Cloudflare Worker for static assets and rate-limited
+routing requests. The public Valhalla instance is shared infrastructure;
+read its [usage guidance](https://github.com/valhalla/valhalla#public-servers)
+before deploying another public instance. Election data and third-party
+components retain their own terms.

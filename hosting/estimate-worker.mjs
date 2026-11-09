@@ -3,9 +3,9 @@ import { readWalkingGrid } from './contour.mjs'
 
 let snapshot
 let point
-self.onmessage = async ({ data: { id, pin, grid, minutes } }) => {
+self.onmessage = async ({ data: { id, pin, grid, start, minutes } }) => {
   if (grid) {
-    const contour = readWalkingGrid(grid).catch(() => null)
+    const contour = readWalkingGrid(grid, start).catch(() => null)
     point = { pin, contour }
     return
   }
