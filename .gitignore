@@ -1,0 +1,12 @@
+/.deps/
+__pycache__/
+*.log
+node_modules/
+/.playwright-cli/
+/hosting/.checks/
+/hosting/.wrangler/
+/hosting/dist/
+/hosting/dist-public/
+.env
+.env.*
+.dev.vars*

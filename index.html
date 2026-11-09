@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141816">
+  <title>Walking Distance</title>
+  <meta name="description" content="Explore where you can walk in up to 30 minutes and see estimated Israeli election results inside that area.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%239aefcc'/%3E%3Cpath d='M18 10c0 4-6 8-6 8s-6-4-6-8a6 6 0 1 1 12 0Z M10 10l1.5 1.5L14 9' fill='none' stroke='%23141816' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&amp;family=Rubik:wght@400..800&amp;display=swap">
+  <link rel="stylesheet" href="./maplibre.css">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./maplibre.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wordmark">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 10-8 10s-8-5-8-10a8 8 0 1 1 16 0Z"/><path d="m9 10 2 2 4-4"/></svg>
+      </span>
+      <h1 data-text="title" dir="auto">Walking Distance</h1>
+    </div>
+    <div class="header-actions">
+      <span class="election" data-text="election" dir="auto">Knesset 26 · 2026</span>
+      <button id="language" class="language-toggle" type="button">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        <span id="language-label" lang="he" dir="rtl">עברית</span>
+      </button>
+    </div>
+  </header>
+  <main class="workspace">
+    <section class="map-panel" data-label="mapLabel" aria-label="Walking area map">
+      <div id="map"></div>
+      <div class="map-controls">
+        <button id="center" class="icon-button" type="button" data-label="center" aria-label="Use map center" title="Use map center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="2"/></svg>
+        </button>
+      </div>
+      <div class="map-key">
+        <span id="contour-key"><i class="contour-key" aria-hidden="true"></i><b data-walk-title dir="auto">15-minute walk</b></span>
+        <span id="dot-key" hidden><i class="dot-key" aria-hidden="true"></i><b data-text="dotKey" dir="auto">1 estimated vote</b></span>
+      </div>
+      <output id="coordinates" class="coordinates" data-label="coordinates" aria-label="Pin coordinates"></output>
+    </section>
+    <aside class="results" data-label="resultsLabel" aria-label="Estimated election results">
+      <div class="summary">
+        <h2 data-walk-title dir="auto">15-minute walk</h2>
+        <div class="walk-control">
+          <label for="walk-minutes" class="sr-only" data-text="walkTime">Walking time</label>
+          <input id="walk-minutes" type="range" min="0" max="30" step="1" value="15" aria-valuetext="15 minutes">
+          <div class="walk-ticks" aria-hidden="true"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span></div>
+        </div>
+        <div class="metrics">
+          <div><span data-text="validVotes" dir="auto">Estimated valid votes</span><strong id="vote-total">—</strong></div>
+          <div><span data-text="walkArea" dir="auto">Walk area</span><strong id="walk-size">—</strong></div>
+        </div>
+        <p class="status" id="status" role="status" dir="auto">Calculating the walk…</p>
+        <button class="text-button" id="retry" type="button" data-text="retry" dir="auto" hidden>Retry</button>
+      </div>
+      <section id="vote-section" class="vote-section" hidden>
+        <div class="section-title"><h3 data-text="breakdown" dir="auto">Vote breakdown</h3><span data-text="estimates" dir="auto">Estimates</span></div>
+        <ol id="votes" class="vote-list"></ol>
+        <button class="text-button" id="more" type="button" dir="auto" hidden></button>
+      </section>
+      <p class="results-note" data-text="note" dir="auto">The results are inaccurate and are calculated based on ballot locations and statistical areas.</p>
+      <footer class="site-links">
+        <a href="https://yoavfried.com/" data-text="home">Yoav Fried</a>
+        <a href="https://github.com/Yoavfried/walking-distance" data-text="source">Source code</a>
+        <a href="https://www.openstreetmap.org/copyright" data-text="osm">© OpenStreetMap contributors</a>
+      </footer>
+    </aside>
+  </main>
+</body>
+</html>
