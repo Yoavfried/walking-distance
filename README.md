@@ -132,4 +132,12 @@ before using it. For a hosted build, request the default pin (34.7748, 32.0776)
 from your own protected router and pass its TIFF to
 `npm run prepare:start -- path/to/initial-grid.tiff` instead.
 Generated assets, the routing graph, caches, and deployment credentials are not
-committed. Election data and third-party components retain their own terms.
+committed.
+
+## License
+
+The original Walking Distance code and documentation in this repository are
+available under the [MIT License](LICENSE). You can inspect, modify, or deploy
+your own copy without changing the hosted site. The license does not grant
+access to the production infrastructure or its protected routing service.
+Election data, map data, and third-party components retain their own terms.
