@@ -34,6 +34,20 @@ a { color: var(--mint); }
   gap: 12px;
 }
 .wordmark, .header-actions { display: flex; align-items: center; gap: 10px; }
+.wordmark, .wordmark-text { min-width: 0; }
+.wordmark-text { display: flex; align-items: center; gap: 12px; }
+.header-actions { flex: 0 0 auto; }
+.header-link {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--mint);
+}
+.header-link:hover { background: var(--surface); }
 .logo {
   display: grid;
   place-items: center;
@@ -212,9 +226,11 @@ h3 { font-size: 16px; font-weight: 800; }
 
 @media (max-width: 720px) {
   :root { --header-height: 55px; }
-  .topbar { padding: 0 12px; }
+  .topbar { gap: 8px; padding: 0 12px; }
+  .wordmark-text { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .header-actions { gap: 6px; }
   h1 { font-size: 17px; }
-  .election { font-size: 11px; padding: 5px 7px; }
+  .election { border: 0; padding: 0; font-size: 11px; text-align: start; }
   .language-toggle { min-width: 0; padding: 0 10px; border-radius: 8px; font-size: 13px; }
   .workspace { display: flex; flex-direction: column; height: auto; }
   .map-panel { height: 54svh; min-height: 320px; }
@@ -230,6 +246,6 @@ h3 { font-size: 16px; font-weight: 800; }
   .metrics > div + div strong { font-size: 21px; }
 }
 @media (max-width: 400px) {
+  :root { --header-height: 64px; }
   .wordmark .logo { display: none; }
-  .header-actions { gap: 6px; }
 }

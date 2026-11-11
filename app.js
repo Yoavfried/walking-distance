@@ -5,7 +5,7 @@ const strings = {
   en: {
     title: 'Walking Distance', election: 'Knesset 26 · 2026',
     walkTitle: (n) => n + '-minute walk', walkTime: 'Walking time', minutes: (n) => n + (n === 1 ? ' minute' : ' minutes'),
-    home: 'Yoav Fried', source: 'Source code', osm: '© OpenStreetMap contributors',
+    home: 'Yoav Fried homepage', source: 'Walking Distance source code', osm: '© OpenStreetMap contributors',
     validVotes: 'Estimated valid votes', walkArea: 'Walk area', unit: 'km²',
     breakdown: 'Vote breakdown', estimates: 'Estimates', dotKey: '1 estimated vote',
     note: 'The results are inaccurate and are calculated based on ballot locations and statistical areas.',
@@ -22,7 +22,7 @@ const strings = {
   he: {
     title: 'מרחק הליכה', election: 'הכנסת ה־26 · 2026',
     walkTitle: (n) => n + ' דקות הליכה', walkTime: 'משך ההליכה', minutes: (n) => n + ' דקות',
-    home: 'יואב פריד', source: 'קוד המקור', osm: '© תורמי OpenStreetMap',
+    home: 'האתר של יואב פריד', source: 'קוד המקור של מרחק הליכה', osm: '© תורמי OpenStreetMap',
     validVotes: 'אומדן קולות כשרים', walkArea: 'שטח ההליכה', unit: 'קמ״ר',
     breakdown: 'התפלגות קולות', estimates: 'אומדנים', dotKey: 'קול אחד באומדן',
     note: 'התוצאות לא מדויקות ומחושבות על בסיס מיקומי קלפיות ואיזורים סטטיסטיים.',
@@ -248,6 +248,7 @@ function applyLanguage() {
   decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   for (const node of document.querySelectorAll('[data-text]')) node.textContent = t(node.dataset.text);
   for (const node of document.querySelectorAll('[data-label]')) node.setAttribute('aria-label', t(node.dataset.label));
+  for (const link of document.querySelectorAll('.header-link')) link.title = t(link.dataset.label);
   $('center').title = t('center');
   const other = language === 'he' ? 'en' : 'he';
   $('language-label').lang = other;
