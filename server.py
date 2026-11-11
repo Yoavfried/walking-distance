@@ -101,9 +101,10 @@ def vote_dots(rounded, contributions, areas, source_ids, parties):
 
 
 class ElectionIndex:
-    def __init__(self, root):
+    def __init__(self, root, election_id=ELECTION):
         catalog = read_json(root / "catalog.json")
-        election = next(row for row in catalog["elections"] if row["id"] == ELECTION)
+        election = next(row for row in catalog["elections"] if row["id"] == election_id)
+        self.election = election_id
         self.build_id = catalog["buildId"]
         data = read_json(root / election["resultUrls"]["statistical-area"])
         self.parties = {row["id"]: row for row in data["parties"]}
@@ -184,5 +185,5 @@ class ElectionIndex:
             "overlaps": {"type": "FeatureCollection", "features": features},
             "dots": vote_dots(rounded, contributions, areas, [item["id"] for item in included], self.parties),
             "walk": {"type": "Feature", "geometry": mapping(transform(walk, TO_DEGREES, interleaved=False)), "properties": {}},
-            "buildId": self.build_id, "election": ELECTION,
+            "buildId": self.build_id, "election": self.election,
         }

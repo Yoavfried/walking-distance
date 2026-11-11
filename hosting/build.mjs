@@ -1,20 +1,24 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { build } from 'esbuild'
+import { snapshotFile } from './snapshots.mjs'
 
 const root = import.meta.dirname
 const read = (path) => readFile(path, 'utf8')
 const { vars: { BASE_PATH, PUBLIC_ORIGIN }, assets: { directory } } = JSON.parse(await read(resolve(root, 'wrangler.json')))
 if (!/^\/[a-z][a-z-]*$/.test(BASE_PATH)) throw new Error('Unexpected site path')
 const demo = process.argv.includes('--demo')
+const localData = !demo || process.argv.includes('--local-data')
 const dist = resolve(root, demo ? 'dist/demo' : directory)
 const target = resolve(dist, BASE_PATH.slice(1))
 const repo = resolve(process.env.WALK_VOTE_REPO ?? resolve(homedir(), 'Desktop', 'Side Projects', 'israel-election-map'), 'web', 'app')
 const python = process.env.WALK_VOTE_PYTHON || 'python'
 const copy = (source, destination) => copyFile(source, resolve(target, destination))
+const maxDownloadBytes = 16 * 1024 * 1024
+const maxSnapshotBytes = 25 * 1024 * 1024
 await mkdir(target, { recursive: true })
 
 const mapAssets = [
@@ -24,16 +28,17 @@ const mapAssets = [
   ['map-context.geojson', 'public/data/v2/geographies/map-context-footprint.geojson'],
 ]
 
-async function downloadDemoAsset(file, sha256) {
+async function downloadDemoAsset(file, { sha256, allowMissing = false, maxBytes = maxDownloadBytes } = {}) {
   const response = await fetch(PUBLIC_ORIGIN + BASE_PATH + '/' + file, {
     redirect: 'error', signal: AbortSignal.timeout(20_000),
   })
+  if (allowMissing && response.status === 404) return false
   if (!response.ok) throw new Error('Could not download demo asset: ' + file + ' (' + response.status + ')')
   const chunks = []
   let size = 0
   for await (const chunk of response.body) {
     size += chunk.length
-    if (size > 16 * 1024 * 1024) throw new Error('Oversized demo asset: ' + file)
+    if (size > maxBytes) throw new Error('Oversized demo asset: ' + file)
     chunks.push(chunk)
   }
   const bytes = Buffer.concat(chunks)
@@ -41,23 +46,48 @@ async function downloadDemoAsset(file, sha256) {
     throw new Error('Vendor file does not match the pinned digest: ' + file)
   }
   await writeFile(resolve(target, file), bytes)
+  return true
 }
 
-if (demo) {
-  await Promise.all([
-    ...mapAssets.map(([file, , hash]) => downloadDemoAsset(file, hash)),
-    downloadDemoAsset('k26-results.json'),
-    downloadDemoAsset('initial-grid.tiff'),
-  ])
-} else {
-  execFileSync(python, [resolve(root, 'export-data.py'), resolve(target, 'k26-results.json')], { stdio: 'inherit' })
+const electionCatalogPath = resolve(target, 'elections.json')
+if (localData) {
+  execFileSync(python, [resolve(root, 'export-data.py'), target], { stdio: 'inherit' })
   await copy(resolve(root, '.checks', 'initial-grid.tiff'), 'initial-grid.tiff')
   await Promise.all(mapAssets.map(([file, path]) => copy(resolve(repo, path), file)))
+} else {
+  await Promise.all([
+    ...mapAssets.map(([file, , sha256]) => downloadDemoAsset(file, { sha256 })),
+    downloadDemoAsset('initial-grid.tiff'),
+  ])
+  if (!await downloadDemoAsset('elections.json', { allowMissing: true })) {
+    // Older hosted builds only publish K26.
+    const catalog = [{ id: 'K26', label: { en: 'Knesset 26 · 2026', he: 'הכנסת ה־26 · 2026' } }]
+    await writeFile(electionCatalogPath, JSON.stringify(catalog))
+  }
+}
+
+const elections = JSON.parse(await read(electionCatalogPath))
+if (!Array.isArray(elections) || !elections.length ||
+    new Set(elections.map(({ id }) => id)).size !== elections.length ||
+    elections.some(({ label }) => !label?.en || typeof label.en !== 'string' ||
+      !label?.he || typeof label.he !== 'string')) {
+  throw new Error('Invalid election catalog')
+}
+for (const { id } of elections) {
+  const file = snapshotFile(id)
+  if (localData) {
+    if ((await stat(resolve(target, file))).size > maxSnapshotBytes) throw new Error('Oversized snapshot: ' + file)
+  } else {
+    await downloadDemoAsset(file, { maxBytes: maxSnapshotBytes })
+  }
 }
 
 const html = await read(resolve(root, '..', 'index.html'))
 await writeFile(resolve(target, 'index.html'), html
-  .replace('<head>', '<head>\n  <base href="' + BASE_PATH + '/">\n  <link rel="canonical" href="' + PUBLIC_ORIGIN + BASE_PATH + '">'))
+  .replace('<head>', '<head>\n  <base href="' + BASE_PATH + '/">\n  <link rel="canonical" href="' + PUBLIC_ORIGIN + BASE_PATH + '">')
+  .replace('<script id="election-catalog" type="application/json"></script>',
+    () => '<script id="election-catalog" type="application/json">' +
+      JSON.stringify(elections).replaceAll('<', '\\u003c') + '</script>'))
 
 await Promise.all([
   copy(resolve(root, '..', 'app.js'), 'app.js'),
@@ -76,9 +106,9 @@ const mapLicenses = [
   ['mapbox-gl-rtl-text', 'node_modules/@mapbox/mapbox-gl-rtl-text/LICENSE.md'],
 ]
 await Promise.all([
-  ...mapLicenses.map(([name, path]) => demo
-    ? downloadDemoAsset('licenses/' + name + '.txt')
-    : copy(resolve(repo, path), 'licenses/' + name + '.txt')),
+  ...mapLicenses.map(([name, path]) => localData
+    ? copy(resolve(repo, path), 'licenses/' + name + '.txt')
+    : downloadDemoAsset('licenses/' + name + '.txt')),
   ...[
     ['earcut', 'LICENSE'], ['polygon-clipping', 'LICENSE.md'], ['proj4', 'LICENSE.md'],
     ['robust-predicates', 'LICENSE'], ['mgrs', 'license.md'], ['wkt-parser', 'LICENSE.md'],

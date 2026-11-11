@@ -41,6 +41,7 @@ class EstimationTests(unittest.TestCase):
     def test_estimate_weights_group_and_locality_fallback_once(self):
         idx = ElectionIndex.__new__(ElectionIndex)
         idx.build_id = "test"
+        idx.election = "K25"
         idx.parties = {
             key: {"names": {"en": key, "he": key}, "color": "#000000"}
             for key in ("A", "B")
@@ -52,6 +53,7 @@ class EstimationTests(unittest.TestCase):
         idx.geometries = [box(0, 0, 20, 10), box(0, 10, 20, 20)]
         idx.tree = STRtree(idx.geometries)
         result = idx.estimate(box(0, 0, 2, 20))
+        self.assertEqual(result["election"], "K25")
         self.assertEqual([row["votes"] for row in result["parties"]], [60, 3])
         self.assertEqual(result["votes"], 63)
         self.assertEqual(result["areaCoverage"], 1)

@@ -3,17 +3,19 @@
 [Open Walking Distance](https://yoavfried.com/walking-distance) · [Report an issue](https://github.com/Yoavfried/walking-distance/issues)
 
 Drop a pin in Israel and set a walking time from 0 to 30 minutes. The map shows
-the estimated area reachable on foot and how the 2026 Knesset election results
-break down within it. It is available in Hebrew and English.
+the estimated area reachable on foot and how results break down within it
+for any Knesset election from K17 (2006) through K26 (2026). It is available in
+Hebrew and English.
 
 ## How The Estimate Works
 
 1. [Valhalla](https://valhalla.github.io/valhalla/api/isochrone/api-reference/)
    returns one 30-minute pedestrian travel-time grid per pin. The browser turns
    that grid into a boundary for each selected minute; moving the slider does
-   not send another routing request. The initial pin uses a bundled grid.
+   not send another routing request. Switching elections reuses the same pin,
+   walking time, and grid. The initial pin uses a bundled grid.
 2. The [Israeli Election Map](https://github.com/Yoavfried/israel-election-map)
-   supplies the K26 results. We use the visible statistical-area and grouped
+   supplies the results and geography for each election. We use the visible statistical-area and grouped
    result polygons, or whole-locality polygons where the election map does not
    have a split. We don't count a group and its components twice. Marker-only
    results, unassigned ballots and double envelopes are excluded.
@@ -39,7 +41,8 @@ break down within it. It is available in Hebrew and English.
   times but does not assign a time to cells with missing data.
 - Election polygons can cover more than one statistical area, and some results
   are not mapped. The tool cannot recover exact results for arbitrary streets
-  or tell where any individual voted.
+  or tell where any individual voted. Coverage and boundaries vary by election.
+  The walking network represents current routes, not historical ones.
 
 ## Sources And Privacy
 
@@ -60,6 +63,8 @@ The browser also loads map tiles from OpenFreeMap and fonts from Google Fonts.
   party vote counts, and a type indicating direct, grouped or fallback results.
   `buildId` identifies the upstream election-map build. This is derived data,
   not per-ballot-box results, and it does not contain voter locations.
+  Other snapshots follow the same path pattern, from `k17-results.json` to
+  `k26-results.json`. The browser loads only the selected election's snapshot.
 - [Israeli Election Map data downloads](https://github.com/Yoavfried/israel-election-map/tree/main/data)
   has the underlying ballot tables, geography packages and source notes.
   They are maintained in that separate project rather than duplicated here.
@@ -77,7 +82,7 @@ npm run demo
 ```
 
 Open [the local demo](http://127.0.0.1:4187/walking-distance/). It downloads the
-published snapshot and starting grid, verifies the digests of its downloaded
+published snapshots and starting grid, verifies the digests of its downloaded
 map-library code, and builds the app from your checkout. You can use the map,
 results, and minute slider at the starting pin without Python, a cloud account,
 or any secrets. To enable new pins, run your own
@@ -108,7 +113,9 @@ npm run build
 
 `npm test` can also run on its own without Python or the election-map checkout.
 `prepare:start` fetches the initial walking grid; `npm run build` writes the
-browser assets and generated K26 snapshot to `hosting/dist-public/`.
+browser assets and a snapshot for each election to `hosting/dist-public/`.
+To preview locally generated snapshots, run `node build.mjs --demo --local-data`
+and then `node demo-server.mjs` from `hosting/`.
 
 ## How The Site Is Hosted
 

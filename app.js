@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const strings = {
   en: {
-    title: 'Walking Distance', election: 'Knesset 26 · 2026',
+    title: 'Walking Distance', electionLabel: 'Knesset election',
     walkTitle: (n) => n + '-minute walk', walkTime: 'Walking time', minutes: (n) => n + (n === 1 ? ' minute' : ' minutes'),
     home: 'Yoav Fried homepage', source: 'Walking Distance source code', osm: '© OpenStreetMap contributors',
     validVotes: 'Estimated valid votes', walkArea: 'Walk area', unit: 'km²',
@@ -13,6 +13,7 @@ const strings = {
     resultsLabel: 'Estimated election results', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     canvas: 'Israel map. Pan and use the Use map center button to set a point by keyboard.',
     calculating: 'Calculating the walk…', noVotes: 'No estimated votes from mapped areas in this walk.',
+    loadingElection: 'Loading election results…', electionUnavailable: 'Could not load results for this election.',
     noRoute: 'No walking route was found here. Try a nearby street.',
     outside: 'Choose a starting point within the Israel map extent.',
     busy: 'The walking service is busy. Try again in a moment.',
@@ -20,7 +21,7 @@ const strings = {
     retry: 'Retry', showAll: (n) => 'Show all ' + n + ' parties', fewer: 'Show fewer parties',
   },
   he: {
-    title: 'מרחק הליכה', election: 'הכנסת ה־26 · 2026',
+    title: 'מרחק הליכה', electionLabel: 'בחירות לכנסת',
     walkTitle: (n) => n + ' דקות הליכה', walkTime: 'משך ההליכה', minutes: (n) => n + ' דקות',
     home: 'האתר של יואב פריד', source: 'קוד המקור של מרחק הליכה', osm: '© תורמי OpenStreetMap',
     validVotes: 'אומדן קולות כשרים', walkArea: 'שטח ההליכה', unit: 'קמ״ר',
@@ -30,6 +31,7 @@ const strings = {
     resultsLabel: 'אומדן תוצאות הבחירות', zoomIn: 'הגדלה', zoomOut: 'הקטנה',
     canvas: 'מפת ישראל. לבחירה באמצעות המקלדת, הזיזו את המפה ולחצו על בחירה במרכז המפה.',
     calculating: 'מחשבים את אזור ההליכה…', noVotes: 'אין אומדן קולות מאזורים שמופו בטווח ההליכה הזה.',
+    loadingElection: 'טוענים את תוצאות הבחירות…', electionUnavailable: 'לא ניתן לטעון את תוצאות הבחירות האלה.',
     noRoute: 'לא נמצא מסלול הליכה מכאן. נסו רחוב סמוך.',
     outside: 'בחרו נקודת התחלה בתחום המפה.',
     busy: 'שירות ההליכה עמוס. נסו שוב בעוד רגע.',
@@ -46,6 +48,10 @@ try {
 if (explicitLanguage === 'en' || explicitLanguage === 'he') language = explicitLanguage;
 const t = (key) => strings[language][key];
 const asset = (path) => new URL(path, document.baseURI);
+const elections = JSON.parse($('election-catalog').textContent);
+const compactElections = matchMedia('(max-width: 360px)');
+const requestedElection = pageUrl.searchParams.get('election')?.toUpperCase();
+let election = elections.some(({ id }) => id === requestedElection) ? requestedElection : elections[0].id;
 const estimator = new Worker(asset('estimate-worker.js'));
 let number, percent, decimal;
 const empty = { type: 'FeatureCollection', features: [] };
@@ -60,6 +66,7 @@ const fallbackStyle = {
 
 let result = null;
 let visibleWalk = null;
+let walkAreaKm2 = null;
 let expanded = false;
 let activeParty = null;
 let selected = [34.7748, 32.0776];
@@ -238,6 +245,20 @@ function status(key, error = false) {
   $('retry').hidden = !hasError;
 }
 
+function renderElectionOptions() {
+  const select = $('election');
+  select.dir = language === 'he' ? 'rtl' : 'ltr';
+  select.replaceChildren(...elections.map(({ id, label }) => {
+    const fullLabel = label[language];
+    const optionLabel = compactElections.matches
+      ? fullLabel.replace(/^.*? · /, (language === 'he' ? id.slice(1) : id) + ' · ')
+      : fullLabel;
+    return new Option(optionLabel, id);
+  }));
+  select.value = election;
+  select.disabled = false;
+}
+
 function applyLanguage() {
   document.documentElement.lang = language;
   $('vote-section').dir = language === 'he' ? 'rtl' : 'ltr';
@@ -254,6 +275,7 @@ function applyLanguage() {
   $('language-label').lang = other;
   $('language-label').dir = other === 'he' ? 'rtl' : 'ltr';
   $('language-label').textContent = other === 'he' ? 'עברית' : 'English';
+  renderElectionOptions();
   status(statusKey, hasError);
   renderWalkTime();
   updateMapLanguage();
@@ -307,8 +329,8 @@ function votes() {
 
 function renderResults() {
   $('vote-total').textContent = result ? number.format(result.votes) : '—';
-  $('walk-size').replaceChildren(document.createTextNode(result ? decimal.format(result.areaKm2) : '—'));
-  if (result) {
+  $('walk-size').replaceChildren(document.createTextNode(walkAreaKm2 === null ? '—' : decimal.format(walkAreaKm2)));
+  if (walkAreaKm2 !== null) {
     const unit = document.createElement('small');
     unit.textContent = ' ' + t('unit');
     $('walk-size').append(unit);
@@ -330,7 +352,7 @@ function fitWalk(walk, duration = 500) {
   map.fitBounds(bounds, { padding: pad, maxZoom: 15.1, duration });
 }
 
-function estimateWalk(id, minutes, signal) {
+function estimateWalk(id, minutes, electionId, signal) {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       estimator.removeEventListener('message', receive);
@@ -355,7 +377,7 @@ function estimateWalk(id, minutes, signal) {
     estimator.addEventListener('message', receive);
     estimator.addEventListener('error', fail);
     signal.addEventListener('abort', fail, { once: true });
-    estimator.postMessage({ id, pin: pinId, minutes });
+    estimator.postMessage({ id, pin: pinId, minutes, election: electionId });
   });
 }
 
@@ -391,6 +413,7 @@ function gridForPoint() {
 function showEstimate(estimate) {
   result = estimate;
   visibleWalk = estimate.walk;
+  walkAreaKm2 = estimate.areaKm2;
   status(estimate.votes || minutes === 0 ? '' : 'noVotes');
   renderResults();
   paintMap();
@@ -404,9 +427,11 @@ function fitIfRequested() {
   }
 }
 
-function updateWalk() {
+function updateWalk({ electionOnly = false } = {}) {
   const id = ++requestId;
   const duration = minutes;
+  const electionId = election;
+  const cacheKey = electionId + ':' + duration;
   clearTimeout(scheduled);
   estimateController?.abort();
   renderWalkTime();
@@ -415,13 +440,16 @@ function updateWalk() {
     showEstimate({ votes: 0, areaKm2: 0, parties: [], walk: null });
     return;
   }
-  if (estimates.has(duration)) {
-    showEstimate(estimates.get(duration));
+  if (estimates.has(cacheKey)) {
+    showEstimate(estimates.get(cacheKey));
     return;
   }
-  status('calculating');
+  status(electionOnly && visibleWalk ? 'loadingElection' : 'calculating');
   result = null;
-  visibleWalk = null;
+  if (!electionOnly) {
+    visibleWalk = null;
+    walkAreaKm2 = null;
+  }
   renderResults();
   paintMap();
 
@@ -431,16 +459,20 @@ function updateWalk() {
     try {
       await gridForPoint();
       if (id !== requestId) return;
-      const estimate = await estimateWalk(id, duration, signal);
+      const estimate = await estimateWalk(id, duration, electionId, signal);
       if (id !== requestId) return;
       if (estimates.size >= 5) estimates.delete(estimates.keys().next().value);
-      estimates.set(duration, estimate);
+      estimates.set(cacheKey, estimate);
       showEstimate(estimate);
     } catch (error) {
       if (id !== requestId) return;
-      visibleWalk = null;
-      paintMap();
-      status(['outside', 'noRoute', 'busy'].includes(error.message) ? error.message : 'failed', true);
+      if (error.message !== 'electionUnavailable') {
+        visibleWalk = null;
+        walkAreaKm2 = null;
+        renderResults();
+        paintMap();
+      }
+      status(['outside', 'noRoute', 'busy', 'electionUnavailable'].includes(error.message) ? error.message : 'failed', true);
     }
   }, 45);
 }
@@ -472,6 +504,15 @@ $('walk-minutes').addEventListener('change', () => {
   fitIfRequested();
 });
 $('center').addEventListener('click', () => selectPoint(map.getCenter().toArray()));
+compactElections.addEventListener('change', renderElectionOptions);
+$('election').addEventListener('change', (event) => {
+  election = event.target.value;
+  pageUrl.searchParams.set('election', election);
+  history.replaceState(null, '', pageUrl);
+  expanded = false;
+  activeParty = null;
+  updateWalk({ electionOnly: true });
+});
 $('language').addEventListener('click', () => {
   language = language === 'he' ? 'en' : 'he';
   try { localStorage.setItem('walk-vote-language', language); } catch { /* Keep the current choice in memory. */ }
@@ -481,7 +522,10 @@ $('language').addEventListener('click', () => {
   }
   applyLanguage();
 });
-$('retry').addEventListener('click', () => selectPoint(selected));
+$('retry').addEventListener('click', () => {
+  if (statusKey === 'electionUnavailable') updateWalk({ electionOnly: true });
+  else selectPoint(selected, isInitial);
+});
 $('votes').addEventListener('click', (event) => {
   const button = event.target.closest('.party-toggle');
   if (button) highlightParty(activeParty === button.dataset.party ? null : button.dataset.party);

@@ -4,10 +4,64 @@ import { test } from 'node:test'
 import proj4 from 'proj4'
 import { estimate } from './estimate.mjs'
 import { readWalkingGrid, walkingGrid } from './contour.mjs'
+import { createSnapshotLoader, snapshotFile } from './snapshots.mjs'
 import worker from './worker.mjs'
 
 const read = async (path) => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'))
 const { vars, assets } = await read('./wrangler.json')
+
+test('Election snapshots load on demand, are keyed by election, and keep only two recent entries', async () => {
+  const fetches = []
+  const load = createSnapshotLoader(async (path) => {
+    fetches.push(path)
+    const election = path.match(/k([0-9]+)/)[1]
+    return Response.json({ election: 'K' + election, parties: [], units: [] })
+  })
+  assert.deepEqual(fetches, [])
+  const initial = load('K26')
+  assert.equal(load('K26'), initial)
+  assert.equal((await initial).election, 'K26')
+  assert.equal((await load('K25')).election, 'K25')
+  assert.equal((await load('K17')).election, 'K17')
+  assert.equal((await load('K26')).election, 'K26')
+  assert.deepEqual(fetches, ['./k26-results.json', './k25-results.json', './k17-results.json', './k26-results.json'])
+})
+
+test('Unavailable or mismatched election data can be retried', async () => {
+  const responses = [
+    new Response(null, { status: 404 }),
+    Response.json({ election: 'K26', parties: [], units: [] }),
+    Response.json({ election: 'K25', parties: [], units: [] }),
+  ]
+  const load = createSnapshotLoader(async () => responses.shift())
+  assert.throws(() => load('../k26'))
+  await assert.rejects(load('K25'), /Could not load/)
+  await assert.rejects(load('K25'), /Unexpected election/)
+  assert.equal((await load('K25')).election, 'K25')
+})
+
+test('Every published election has its own usable snapshot and the same walking contour', { skip: !process.env.WALK_VOTE_PARITY }, async () => {
+  const path = assets.directory + vars.BASE_PATH + '/'
+  const catalog = await read(path + 'elections.json')
+  assert.deepEqual(catalog.map(({ id }) => id), Array.from({ length: 10 }, (_, i) => 'K' + (26 - i)))
+  assert.match(catalog.find(({ id }) => id === 'K22').label.en, /Sep 2019/)
+  assert.match(catalog.find(({ id }) => id === 'K21').label.en, /Apr 2019/)
+  const bytes = await readFile(new URL('./.checks/initial-grid.tiff', import.meta.url))
+  const contour = await readWalkingGrid(Uint8Array.from(bytes).buffer, [34.7748, 32.0776])
+  const walk = contour(15)
+  const totals = new Set()
+  for (const { id } of catalog) {
+    const snapshot = await read(path + snapshotFile(id))
+    assert.equal(snapshot.election, id)
+    assert.ok(snapshot.units.length > 1000, id)
+    const result = estimate(snapshot, walk, 15)
+    assert.ok(result.votes > 0, id)
+    assert.equal(result.election, id)
+    assert.equal(result.walk, walk)
+    totals.add(result.votes)
+  }
+  assert.equal(totals.size, catalog.length)
+})
 
 for (const name of ['initial', 'shapira', 'isfiya']) {
   test('Browser estimate matches Python reference: ' + name, { skip: !process.env.WALK_VOTE_PARITY }, async () => {

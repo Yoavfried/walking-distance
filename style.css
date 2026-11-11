@@ -62,14 +62,20 @@ a { color: var(--mint); }
 .logo svg, .icon-button svg { width: 21px; height: 21px; }
 h1 { font-size: 20px; font-weight: 800; line-height: 1.16; }
 .election {
+  max-width: 100%;
+  min-height: 34px;
   border: 1px solid #5a4932;
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 4px 8px;
+  background: var(--surface);
   color: var(--amber);
+  font-family: inherit;
   font-size: 12px;
   font-weight: 700;
-  text-align: center;
+  line-height: 1.2;
+  cursor: pointer;
 }
+.election:hover { border-color: var(--amber); }
 .language-toggle {
   display: inline-flex;
   align-items: center;
@@ -225,12 +231,12 @@ h3 { font-size: 16px; font-weight: 800; }
 .results:lang(he) { text-align: right; }
 
 @media (max-width: 720px) {
-  :root { --header-height: 55px; }
+  :root { --header-height: 64px; }
   .topbar { gap: 8px; padding: 0 12px; }
   .wordmark-text { flex-direction: column; align-items: flex-start; gap: 2px; }
   .header-actions { gap: 6px; }
   h1 { font-size: 17px; }
-  .election { border: 0; padding: 0; font-size: 11px; text-align: start; }
+  .election { min-height: 29px; padding: 2px 4px; font-size: 11px; }
   .language-toggle { min-width: 0; padding: 0 10px; border-radius: 8px; font-size: 13px; }
   .workspace { display: flex; flex-direction: column; height: auto; }
   .map-panel { height: 54svh; min-height: 320px; }
@@ -245,7 +251,9 @@ h3 { font-size: 16px; font-weight: 800; }
   .metrics strong { font-size: 27px; }
   .metrics > div + div strong { font-size: 21px; }
 }
-@media (max-width: 400px) {
-  :root { --header-height: 64px; }
+@media (max-width: 430px) {
   .wordmark .logo { display: none; }
+}
+@media (max-width: 360px) {
+  :root { --header-height: 74px; }
 }

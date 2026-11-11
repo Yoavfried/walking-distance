@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./maplibre.css">
   <link rel="stylesheet" href="./style.css">
   <script src="./maplibre.js" defer></script>
+  <script id="election-catalog" type="application/json"></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -23,7 +24,9 @@
       </span>
       <div class="wordmark-text">
         <h1 data-text="title" dir="auto">Walking Distance</h1>
-        <span class="election" data-text="election" dir="auto">Knesset 26 · 2026</span>
+        <select id="election" class="election" data-label="electionLabel" aria-label="Knesset election" disabled>
+          <option value="K26">Knesset 26 · 2026</option>
+        </select>
       </div>
     </div>
     <div class="header-actions">
